@@ -68,6 +68,10 @@ services:
     depends_on:
       - postgres
     restart: on-failure
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
 
   dbt:
     image: ghcr.io/dbt-labs/dbt-postgres:1.7.6 # use latest compatible version
