@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres
+    container_name: postgres-lab-capstone
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: capstone-movie-analytics
+    volumes:
+      - postgres_data:/var/lib/postgresql # Uncommented so you don't lose data on restart
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+
+  airflow-webserver:
+    build: ./airflow
+    container_name: airflow-webserver-lab-capstone
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      # CHANGED: Now matches your Postgres service credentials
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/capstone-movie-analytics
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False # Keeps your UI clean
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DBT_TARGET_PATH=/tmp/dbt_target
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/datasets:/opt/airflow/datasets
+      - ./airflow/logs:/opt/airflow/logs
+      - ./dbt:/opt/airflow/dbt
+      - ./scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    # ADDED: Initialization logic
+    command: bash -c "airflow db init && airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com || true && airflow webserver"
+
+  airflow-scheduler:
+    build: ./airflow
+    container_name: airflow-scheduler-lab-capstone
+    depends_on:
+      - airflow-webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      # CHANGED: Now matches your Postgres service credentials
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://admin:admin@postgres:5432/capstone-movie-analytics
+      - AIRFLOW__LOGGING__REMOTE_LOGGING=False
+      - DB_HOST=postgres
+      - DB_PORT=5432
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/datasets:/opt/airflow/datasets
+      - ./airflow/logs:/opt/airflow/logs
+      - ./dbt:/opt/airflow/dbt
+      - ./scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: scheduler
+
+  python-app:
+    build:
+      context: ./scripts
+    container_name: python-lab-capstone
+    depends_on:
+      - postgres
+    restart: on-failure
+
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:1.7.6 # use latest compatible version
+    container_name: dbt-lab-capstone
+    working_dir: /usr/app
+    volumes:
+      - ./dbt:/usr/app
+    depends_on:
+      - postgres
+    command: tail -f /dev/null
+
+volumes:
+  postgres_data:
