@@ -70,6 +70,12 @@ services:
     restart: on-failure
     environment:
       - DATA_DIR=/app/data
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - DB_NAME=capstone-movie-analytics
+      - DB_SCHEMA=bronze
     volumes:
       - ./data:/app/data
 
